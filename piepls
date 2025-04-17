@@ -1,0 +1,1855 @@
+TableScreen
+----------------------------------
+"@next/swc-win32-x64-msvc": "^15.2.3",
+----------------------------------
+
+import 'package:ait_iot_app/View/detail_screen.dart';
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../providers/data_provider.dart';
+import 'package:intl/intl.dart';
+
+class TableScreen extends StatefulWidget {
+  final String accessToken;
+
+  const TableScreen({Key? key, required this.accessToken}) : super(key: key);
+
+  @override
+  State<TableScreen> createState() => _TableScreenState();
+}
+
+class _TableScreenState extends State<TableScreen> {
+  late ScrollController _scrollController;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final dataProvider = Provider.of<DataProvider>(context, listen: false);
+      dataProvider.fetchDefaultData();
+      dataProvider.fetchSensorOptions();
+    });
+    _scrollController = ScrollController();
+    _scrollController.addListener(_onScroll);
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
+      final dataProvider = Provider.of<DataProvider>(context, listen: false);
+      if (!dataProvider.isFetchingMore) {
+        dataProvider.fetchMoreData();
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _showDateValidationAlert(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Column(
+            children: [
+              const Icon(
+                Icons.warning_amber_rounded,
+                color: Colors.red,
+                size: 64,
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Invalid Date Range',
+                style: TextStyle(
+                  color: Colors.red[700],
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+          content: const Text(
+            'The end date cannot be earlier than the start date. Please select a valid date range.',
+            textAlign: TextAlign.center,
+          ),
+          actions: [
+            Center(
+              child: ElevatedButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red[100],
+                  foregroundColor: Colors.red[800],
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 10),
+                ),
+                child: const Text('OK'),
+              ),
+            ),
+          ],
+          backgroundColor: Colors.white,
+          elevation: 10,
+        );
+      },
+    );
+  }
+
+  Future<void> _selectDate(BuildContext context, bool isStartDate) async {
+    final dataProvider = Provider.of<DataProvider>(context, listen: false);
+    DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+
+    if (picked != null) {
+      if (!isStartDate && dataProvider.startDate != null) {
+        final startDateTime = dataProvider.startDate!;
+        
+        if (picked.isBefore(startDateTime)) {
+          _showDateValidationAlert(context);
+          return;
+        }
+      }
+      
+      if (isStartDate && dataProvider.endDate != null) {
+        final endDateTime = dataProvider.endDate!;
+        
+        if (picked.isAfter(endDateTime)) {
+          _showDateValidationAlert(context);
+          return;
+        }
+      }
+      
+      // Update the filter with valid date
+      if (isStartDate) {
+        dataProvider.updateFilters(newStartDate: picked);
+      } else {
+        dataProvider.updateFilters(newEndDate: picked);
+      }
+    }
+  }
+
+  Future<void> _selectTime(BuildContext context, bool isStartTime) async {
+    final dataProvider = Provider.of<DataProvider>(context, listen: false);
+    TimeOfDay? picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.now(),
+    );
+    if (picked != null) {
+      final startDate = dataProvider.startDate;
+      final endDate = dataProvider.endDate;
+      
+      if (startDate != null && endDate != null && 
+          startDate.year == endDate.year && 
+          startDate.month == endDate.month && 
+          startDate.day == endDate.day) {
+        
+        if (isStartTime && dataProvider.endTime != null) {
+          if (picked.hour > dataProvider.endTime!.hour || 
+              (picked.hour == dataProvider.endTime!.hour && 
+               picked.minute > dataProvider.endTime!.minute)) {
+            _showTimeValidationAlert(context);
+            return;
+          }
+        }
+        
+        if (!isStartTime && dataProvider.startTime != null) {
+          if (picked.hour < dataProvider.startTime!.hour || 
+              (picked.hour == dataProvider.startTime!.hour && 
+               picked.minute < dataProvider.startTime!.minute)) {
+            _showTimeValidationAlert(context);
+            return;
+          }
+        }
+      }
+      
+      if (isStartTime) {
+        dataProvider.updateFilters(start: picked);
+      } else {
+        dataProvider.updateFilters(end: picked);
+      }
+    }
+  }
+  
+  // SweetAlert for time validation
+  void _showTimeValidationAlert(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Column(
+            children: [
+              const Icon(
+                Icons.access_time,
+                color: Colors.red,
+                size: 64,
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Invalid Time Range',
+                style: TextStyle(
+                  color: Colors.red[700],
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+          content: const Text(
+            'The end time cannot be earlier than the start time. Please select a valid time range.',
+            textAlign: TextAlign.center,
+          ),
+          actions: [
+            Center(
+              child: ElevatedButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red[100],
+                  foregroundColor: Colors.red[800],
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 10),
+                ),
+                child: const Text('OK'),
+              ),
+            ),
+          ],
+          backgroundColor: Colors.white,
+          elevation: 10,
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final dataProvider = Provider.of<DataProvider>(context);
+
+    return Scaffold(
+      appBar: AppBar(
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Colors.white, Color.fromARGB(255, 255, 155, 155)],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+            ),
+            borderRadius: BorderRadius.vertical(
+              bottom: Radius.circular(16.0),
+            ),
+          ),
+        ),
+        title: const Text('Information'),
+        centerTitle: true,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            if (Navigator.canPop(context)) {
+              Navigator.pop(context);
+            }
+          },
+        ),
+      ),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Colors.white, Color.fromARGB(255, 248, 187, 187)],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+        ),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(12.0),
+              child: Container(
+                padding: const EdgeInsets.all(16.0),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Colors.white, Color.fromARGB(255, 255, 155, 155)],
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    stops: [0.4, 0.8],
+                  ),
+                  borderRadius: BorderRadius.circular(24.0),
+                  border: Border.all(
+                      color: const Color.fromARGB(255, 248, 187, 187)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.grey.shade300,
+                      blurRadius: 6,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Date Picker
+                    Row(
+                      children: [
+                        Expanded(
+                          flex: 1,
+                          child: GestureDetector(
+                            onTap: () =>
+                                _selectDate(context, true), // Select Start Date
+                            child: _buildFilterField(
+                              label: "Start Date",
+                              value: dataProvider.startDate != null
+                                  ? DateFormat('MM/dd/yyyy')
+                                      .format(dataProvider.startDate!)
+                                  : "mm/dd/yyyy",
+                              fieldWidth: double.infinity,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          flex: 1,
+                          child: GestureDetector(
+                            onTap: () =>
+                                _selectDate(context, false), // Select End Date
+                            child: _buildFilterField(
+                              label: "End Date",
+                              value: dataProvider.endDate != null
+                                  ? DateFormat('MM/dd/yyyy')
+                                      .format(dataProvider.endDate!)
+                                  : "mm/dd/yyyy",
+                              fieldWidth: double.infinity,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        // Start Time Field
+                        Expanded(
+                          flex: 1,
+                          child: GestureDetector(
+                            onTap: () => _selectTime(context, true),
+                            child: _buildTimeField(
+                              label: "Start Time",
+                              value: dataProvider.startTime != null
+                                  ? dataProvider.startTime!.format(context)
+                                  : "00:00",
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+
+                        // End Time Field
+                        Expanded(
+                          flex: 1,
+                          child: GestureDetector(
+                            onTap: () => _selectTime(context, false),
+                            child: _buildTimeField(
+                              label: "End Time",
+                              value: dataProvider.endTime != null
+                                  ? dataProvider.endTime!.format(context)
+                                  : "00:00",
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+
+                        Expanded(
+                          flex: 2,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                "Sensors",
+                                style: TextStyle(
+                                    fontSize: 14, color: Colors.purple),
+                              ),
+                              const SizedBox(height: 2),
+                              Container(
+                                decoration: BoxDecoration(
+                                  border: Border.all(
+                                      color: const Color.fromARGB(
+                                          255, 248, 187, 187)),
+                                  borderRadius: BorderRadius.circular(12.0),
+                                ),
+                                child: dataProvider.isSensorLoading
+                                    ? const Center(
+                                        child: CircularProgressIndicator())
+                                    : DropdownButton<String>(
+                                        value: dataProvider.selectedSensor,
+                                        isExpanded: true,
+                                        underline: const SizedBox(),
+                                        items: dataProvider.sensorOptions
+                                            .map((String sensors) {
+                                          return DropdownMenuItem<String>(
+                                            value: sensors,
+                                            child: Text(sensors),
+                                          );
+                                        }).toList(),
+                                        onChanged: (String? newValue) {
+                                          if (newValue != null) {
+                                            dataProvider.updateFilters(
+                                                sensors: newValue);
+                                          }
+                                        },
+                                      ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            // Data List Section
+            Expanded(
+              child: dataProvider.isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : dataProvider.errorMessage.isNotEmpty
+                      ? Center(child: Text(dataProvider.errorMessage))
+                      : dataProvider.filteredDataList.isEmpty
+                          ? const Center(child: Text('No data available.'))
+                          : ListView.builder(
+                              controller: _scrollController,
+                              itemCount: dataProvider.filteredDataList.length +
+                                  (dataProvider.hasMoreData ? 1 : 0),
+                              itemBuilder: (context, index) {
+                                if (index ==
+                                    dataProvider.filteredDataList.length) {
+                                  return const Center(
+                                    child: Padding(
+                                      padding: EdgeInsets.all(8.0),
+                                      child: CircularProgressIndicator(),
+                                    ),
+                                  );
+                                }
+
+                                final data =
+                                    dataProvider.filteredDataList[index];
+                                final formattedTime = data.measuredAt != null
+                                    ? DateFormat('yyyy-MM-dd HH:mm').format(
+                                        DateTime.parse(data.measuredAt!))
+                                    : 'N/A';
+
+                                return Card(
+                                  elevation: 4.0,
+                                  child: ListTile(
+                                    title: Text(
+                                        'Sensor ID: ${data.sensorId ?? "N/A"}'),
+                                    subtitle: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                            'Accumulated Energy: ${data.accumulatedEnergyValue?.toStringAsFixed(2) ?? "N/A"}'),
+                                        Text(
+                                            'Power Consumption: ${data.powerConsumptionValue?.toStringAsFixed(2) ?? "N/A"}'),
+                                        Text(
+                                            'Power Factor: ${data.powerFactorValue?.toStringAsFixed(2) ?? "N/A"}'),
+                                      ],
+                                    ),
+                                    trailing: Text('Time: $formattedTime'),
+                                    onTap: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => DetailScreen(
+                                              sensorData: data),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                );
+                              },
+                            ),
+            ),
+          ],
+        ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: dataProvider.fetchDefaultData,
+        child: const Icon(Icons.refresh),
+      ),
+    );
+  }
+
+  Widget _buildTimeField({required String label, required String value}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(fontSize: 14, color: Colors.purple)),
+        const SizedBox(height: 4),
+        Container(
+          padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 10.0),
+          decoration: BoxDecoration(
+            border: Border.all(color: const Color.fromARGB(255, 248, 187, 187)),
+            borderRadius: BorderRadius.circular(12.0),
+          ),
+          child: Text(value, style: const TextStyle(fontSize: 16)),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFilterField({
+    required String label,
+    required String value,
+    double? fieldWidth,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(fontSize: 14, color: Colors.purple)),
+        const SizedBox(height: 4),
+        Container(
+          width: fieldWidth ?? double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 8.0),
+          decoration: BoxDecoration(
+            border: Border.all(color: const Color.fromARGB(255, 248, 187, 187)),
+            borderRadius: BorderRadius.circular(12.0),
+          ),
+          child: Text(value, style: const TextStyle(fontSize: 16)),
+        ),
+      ],
+    );
+  }
+}
+
+
+------------------------------------------------------------------------
+
+CandleStickChart
+
+import { queryData } from '../../../connectDB/connectdb';
+
+export default async function handler(req, res) {
+    try {
+        const query = `
+            SELECT sum(powerConsumptionValue) AS value, time
+            FROM PowerSensorValue
+            WHERE time >= now() - 90d
+            GROUP BY time(1d) FILL(none)
+            ORDER BY time ASC
+        `;
+
+        const rawData = await queryData(query);
+        console.log("Total raw data points:", rawData.length);
+
+        const costPerUnit = 4.2;
+        const dailyUsageData = rawData.map(item => ({
+            date: new Date(item.time).toISOString().split('T')[0], // YYYY-MM-DD
+            value: Math.round(item.value / 1000), // Convert to MegaWatt and round to integer
+        }));
+        
+        const ohlcData = [];
+        for (let i = 1; i < dailyUsageData.length; i++) {
+            const prevUsage = dailyUsageData[i - 1];
+            const currUsage = dailyUsageData[i];
+        
+            const usagePrev1 = Math.round(prevUsage.value); // Round to integer
+            const usageCurr = Math.round(currUsage.value); // Round to integer
+            const usageDiff = usageCurr - usagePrev1;
+        
+            const open = usagePrev1;
+            const close = usageCurr;
+            const high = Math.max(open, close);
+            const low = Math.min(open, close);
+            let xValue = Math.round(usageCurr - usageDiff); // Round to integer
+        
+            let changeType = usageDiff < 0 ? "decrease" : usageDiff > 0 ? "increase" : "nochange";
+        
+            ohlcData.push({
+                date: new Date(currUsage.date).toISOString(),
+                open: Math.round(open), // Ensure integer values
+                high: Math.round(high),
+                low: Math.round(low),
+                close: Math.round(close),
+                usagePrev1: Math.round(usagePrev1),
+                usageCurr: Math.round(usageCurr),
+                usageDiff: Math.round(usageDiff),
+                xValue: Math.round(xValue),
+                changeType
+            });
+        }
+        
+        res.status(200).json({ data: ohlcData });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Error fetching data' });
+    }
+}
+
+----------------------------------------------------------------------
+
+PieChart
+
+
+import { queryData } from '../../../connectDB/connectdb';
+import { validateToken } from '../../../lib/middleware/authMiddleware';
+import axios from 'axios';
+
+async function handler(req, res) {
+    if (req.method !== 'GET') {
+        return res.status(405).json({ error: "Method not allowed" });
+    }
+
+    const range = req.query.range || "day";
+    const date = req.query.date;
+    let query = "";
+
+    if (date) {
+        query = `SELECT sum(powerConsumptionValue) as total FROM PowerSensorValue WHERE time >= '${date}T00:00:00Z' AND time <= '${date}T23:59:59Z' GROUP BY sensorId`;
+    } else if (range === "day") {
+        query = `SELECT sum(powerConsumptionValue) as total FROM PowerSensorValue WHERE time >= '2024-12-16T00:00:00Z' AND time <= '2024-12-16T23:59:59Z' GROUP BY sensorId`;
+    } else if (range === "month") {
+        query = "SELECT sum(powerConsumptionValue) as total FROM PowerSensorValue WHERE time >= '2024-11-01T00:00:00Z' AND time <= '2024-11-30T23:59:59Z' GROUP BY sensorId";
+    } else if (range === "year") {
+        query = "SELECT sum(powerConsumptionValue) as total FROM PowerSensorValue WHERE time > now() - 365d GROUP BY sensorId";
+    } else {
+        return res.status(400).json({ error: "Invalid range type" });
+    }
+
+    try {
+        const result = await queryData(query);
+
+        // Sort by sensorId
+        result.sort((a, b) => a.sensorId - b.sensorId);
+
+        // Get sensor names from API
+        try {
+            const apiResponse = await axios.get('https://hciox4.ait.co.th/api/v1/branches', {
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${req.headers.authorization?.split(' ')[1]}`,
+                },
+            });
+
+            const branches = apiResponse.data.branches;
+            
+            // Create a map of sensor IDs to sensor names
+            const sensorNameMap = {};
+            
+            branches.forEach(branch => {
+                branch.gateways.forEach(gateway => {
+                    gateway.sensors.forEach(sensor => {
+                        sensorNameMap[sensor.id] = sensor.name || `Sensor ${sensor.id}`;
+                    });
+                });
+            });
+
+            // Function to generate vibrant colors
+            const generateVibrantColors = (num) => {
+                // Predefined vibrant color palette
+                const vibrantPalette = [
+                    '#FF6B6B', // Coral Red
+                    '#4ECDC4', // Turquoise 
+                    '#FFD166', // Yellow
+                    '#06D6A0', // Mint Green
+                    '#118AB2', // Blue
+                    '#73D2DE', // Sky Blue
+                    '#FFA69E', // Salmon
+                    '#9381FF', // Purple
+                    '#FF8C42', // Orange
+                    '#00B4D8', // Aqua
+                    '#9EE493', // Light Green
+                    '#F25F5C', // Tomato
+                    '#50B2C0', // Teal
+                    '#FF99C8', // Pink
+                    '#A0C4FF', // Baby Blue
+                    '#FCBF49', // Amber
+                    '#EF476F', // Raspberry
+                    '#6A0572', // Violet
+                    '#96E072', // Lime
+                    '#F7B801'  // Gold
+                ];
+                
+                // If we need more colors than in our palette, we'll generate additional ones
+                if (num <= vibrantPalette.length) {
+                    return vibrantPalette.slice(0, num);
+                } else {
+                    // Generate additional colors using HSL with high saturation and lightness
+                    const additionalColors = Array.from(
+                        { length: num - vibrantPalette.length }, 
+                        (_, i) => `hsl(${((i * 137) % 360)}, 85%, 65%)`
+                    );
+                    return [...vibrantPalette, ...additionalColors];
+                }
+            };
+
+            const colors = generateVibrantColors(result.length);
+            
+            // Calculate total for percentages
+            const total = result.reduce((sum, point) => sum + point.total, 0);
+
+            const data = result.map((point, index) => ({
+                sensor: point.sensorId,
+                sensorName: sensorNameMap[point.sensorId] || `Sensor ${point.sensorId}`,
+                // Keep raw value with 2 decimal places
+                value: parseFloat(point.total.toFixed(2)),
+                // Add percentage for pie chart
+                percentage: total > 0 ? parseFloat(((point.total / total) * 100).toFixed(2)) : 0,
+                color: colors[index],
+            }));
+
+            res.status(200).json(data);
+        } catch (apiError) {
+            // If API call fails, fall back to just using sensor IDs
+            console.error("Failed to fetch sensor names:", apiError.message);
+            
+            // Use the same vibrant color function for the fallback
+            const generateVibrantColors = (num) => {
+                const vibrantPalette = [
+                    '#FF6B6B', '#4ECDC4', '#FFD166', '#06D6A0', '#118AB2', 
+                    '#73D2DE', '#FFA69E', '#9381FF', '#FF8C42', '#00B4D8', 
+                    '#9EE493', '#F25F5C', '#50B2C0', '#FF99C8', '#A0C4FF', 
+                    '#FCBF49', '#EF476F', '#6A0572', '#96E072', '#F7B801'
+                ];
+                
+                if (num <= vibrantPalette.length) {
+                    return vibrantPalette.slice(0, num);
+                } else {
+                    const additionalColors = Array.from(
+                        { length: num - vibrantPalette.length }, 
+                        (_, i) => `hsl(${((i * 137) % 360)}, 85%, 65%)`
+                    );
+                    return [...vibrantPalette, ...additionalColors];
+                }
+            };
+
+            const colors = generateVibrantColors(result.length);
+            const total = result.reduce((sum, point) => sum + point.total, 0);
+
+            const data = result.map((point, index) => ({
+                sensor: point.sensorId,
+                sensorName: `Sensor ${point.sensorId}`,
+                value: parseFloat(point.total.toFixed(2)),
+                percentage: total > 0 ? parseFloat(((point.total / total) * 100).toFixed(2)) : 0,
+                color: colors[index],
+            }));
+
+            res.status(200).json(data);
+        }
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+}
+export default validateToken(handler);
+
+
+// if (date) {
+//     query = `SELECT mean(powerConsumptionValue) FROM PowerSensorValue WHERE time >= '${date}T00:00:00Z' AND time <= '${date}T23:59:59Z' GROUP BY sensorId`;
+// } else if (range === "day") {
+//     query = `SELECT mean(powerConsumptionValue) FROM PowerSensorValue WHERE time >= now() -1d GROUP BY sensorId`;
+// } else if (range === "month") {
+//     query = "SELECT mean(powerConsumptionValue) FROM PowerSensorValue WHERE time > now() - 30d GROUP BY sensorId";
+// } else if (range === "year") {
+//     query = "SELECT mean(powerConsumptionValue) FROM PowerSensorValue WHERE time > now() - 365d GROUP BY sensorId";
+// } else {
+//     return res.status(400).json({ error: "Invalid range type" });
+// }
+
+
+// if (date) {
+//     query = `SELECT sum(powerConsumptionValue) as total FROM PowerSensorValue WHERE time >= '${date}T00:00:00Z' AND time <= '${date}T23:59:59Z' GROUP BY sensorId`;
+// } else if (range === "day") {
+//     query = `SELECT sum(powerConsumptionValue) as total FROM PowerSensorValue WHERE time >= '2024-12-16T00:00:00Z' AND time <= '2024-12-16T23:59:59Z' GROUP BY sensorId`;
+// } else if (range === "month") {
+//     query = "SELECT sum(powerConsumptionValue) as total FROM PowerSensorValue WHERE time >= '2024-11-01T00:00:00Z' AND time <= '2024-11-30T23:59:59Z' GROUP BY sensorId";
+// } else if (range === "year") {
+//     query = "SELECT sum(powerConsumptionValue) as total FROM PowerSensorValue WHERE time > now() - 365d GROUP BY sensorId";
+// } else {
+//     return res.status(400).json({ error: "Invalid range type" });
+// }
+
+
+---------------------------------------------------------------------------------
+GraphScreen
+
+import 'package:flutter/material.dart';
+import 'package:fl_chart/fl_chart.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'dart:math';
+import 'package:syncfusion_flutter_charts/charts.dart';
+import 'package:intl/intl.dart';
+
+class GraphScreen extends StatefulWidget {
+  final String accessToken;
+  const GraphScreen({Key? key, required this.accessToken}) : super(key: key);
+
+  @override
+  State<GraphScreen> createState() => _GraphScreenState();
+}
+
+class _GraphScreenState extends State<GraphScreen> {
+  String selectedRange = 'day';
+  List<Map<String, dynamic>> sensorData = [];
+  List<Map<String, dynamic>> electricityData = [];
+  List<ChartSampleData> candleStickData = [];
+  bool isLoading = false;
+  bool isCandleLoading = false;
+  final PageController _pageController = PageController();
+  int _currentPage = 0;
+  final double costPerUnit = 4.72; 
+  final double toKiloWatt = 1000; 
+  late TrackballBehavior _trackballBehavior;
+
+  Map<String, List<FlSpot>> _lineChartData = {};
+  Map<String, List<String>> _sensorTimes = {};
+  String selectedMetric = 'powerConsumption';
+  bool isLineChartLoading = false;
+  final List<Color> sensorColors = [
+    Colors.blue,
+    Colors.red,
+    Colors.green,
+    Colors.orange,
+    Colors.purple
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    fetchPieData();
+    fetchBarData();
+    fetchCandleStickData();
+    fetchLineChartData();
+
+    _trackballBehavior = TrackballBehavior(
+      enable: true,
+      activationMode: ActivationMode.singleTap,
+      tooltipSettings: InteractiveTooltip(
+          format: 'Date: point.x \n'
+              'Open: point.open \n'
+              'High: point.high \n'
+              'Low: point.low \n'
+              'Close: point.close \n'),
+    );
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  Future<void> fetchPieData() async {
+    setState(() {
+      isLoading = true;
+    });
+
+    try {
+      final response = await http.get(
+      Uri.parse('http://192.168.62.5:3000/api/Graph/PieGraph?range=$selectedRange'),
+      headers: {
+        'Authorization': 'Bearer ${widget.accessToken}',
+        'Content-Type': 'application/json',
+      },
+    ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        setState(() {
+          sensorData = data
+              .map((sensor) => {
+                    'sensor': sensor['sensor'],
+                    'sensorName': sensor['sensorName'],
+                    'value': (sensor['value'] / 1000).toDouble(),
+                    'percentage': sensor['percentage'].toDouble(),
+                    'color': _parseColor(sensor['color']),
+                  })
+              .toList();
+        });
+      } else {
+        print("Error: ${response.statusCode}");
+      }
+    } catch (error) {
+      print("Error fetching pie data: $error");
+    }
+
+    setState(() {
+      isLoading = false;
+    });
+  }
+
+Future<void> fetchBarData() async {
+  try {
+    final response = await http.get(
+      Uri.parse('http://192.168.62.5:3000/api/Graph/BarChart?months=12'),
+      headers: {
+        'Authorization': 'Bearer ${widget.accessToken}',
+        'Content-Type': 'application/json',
+      },
+    ).timeout(const Duration(seconds: 10));
+
+    if (response.statusCode == 200) {
+      final decodedData = json.decode(response.body);
+      if (decodedData != null && decodedData['data'] is List) {
+        List<Map<String, dynamic>> fetchedData = (decodedData['data'] as List)
+            .map((item) {
+              double energyDifference = (item['energyDifference'] is num)
+                  ? (item['energyDifference'] as num).toDouble()
+                  : 0.0;
+              double electricityUsed = energyDifference / toKiloWatt;
+              double electricityCost = electricityUsed * costPerUnit;
+              
+              return {
+                'month': item['targetMonth'],
+                'electricityUsed': electricityUsed,
+                'electricityCost': electricityCost,
+              };
+            })
+            .toList();
+
+        setState(() {
+          electricityData = fetchedData.reversed.toList(); // Sort from oldest to newest
+        });
+      }
+    } else {
+      debugPrint('Failed to fetch data: ${response.statusCode}');
+    }
+  } catch (e) {
+    debugPrint('Error fetching bar data: $e');
+  }
+}
+
+  Future<void> fetchCandleStickData() async {
+  setState(() {
+    isCandleLoading = true;
+  });
+
+  try {
+    final response = await http
+        .get(Uri.parse('http://192.168.62.5:3000/api/Graph/CandleStick'));
+
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      List<ChartSampleData> chartData = [];
+
+      for (var item in data['data']) {
+        DateTime date = DateTime.parse(item['date']);
+
+        // Round values to integers
+        double? open = double.tryParse(item['open'].toString()) ?? 0.0;
+        double? high = double.tryParse(item['high'].toString()) ?? 0.0;
+        double? low = double.tryParse(item['low'].toString()) ?? 0.0;
+        double? close = double.tryParse(item['close'].toString()) ?? 0.0;
+
+        // Round to integers
+        open = open.roundToDouble();
+        high = high.roundToDouble();
+        low = low.roundToDouble();
+        close = close.roundToDouble();
+
+        chartData.add(ChartSampleData(
+          x: date,
+          open: open,
+          high: high,
+          low: low,
+          close: close,
+        ));
+      }
+
+      // Sort the data by date to ensure it's in chronological order
+      chartData.sort((a, b) => a.x.compareTo(b.x));
+
+      setState(() {
+        candleStickData = chartData;
+        isCandleLoading = false;
+      });
+    } else {
+      throw Exception('Failed to load candlestick data');
+    }
+  } catch (e) {
+    print('Error fetching candlestick data: $e');
+    setState(() {
+      isCandleLoading = false;
+    });
+  }
+}
+
+Future<void> fetchLineChartData() async {
+    setState(() => isLineChartLoading = true);
+    try {
+      final response = await http.get(
+        Uri.parse('http://192.168.62.5:3000/api/Graph/LineChart'),
+        headers: {
+          'Authorization': 'Bearer ${widget.accessToken}',
+          'Content-Type': 'application/json',
+        },
+      ).timeout(const Duration(seconds: 20));
+
+      if (response.statusCode == 200) {
+        final decodedData = json.decode(response.body)['data'];
+        Map<String, List<FlSpot>> sensorSpots = {};
+        Map<String, List<String>> sensorTimes = {};
+
+        for (var entry in decodedData) {
+          double hour = double.parse(entry['hour'].split('T')[1].split(':')[0]);
+          double metricValue = (entry[selectedMetric] as num? ?? 0).toDouble();
+          String sensorId = entry['sensorId'].toString();
+          String time = entry['hour'].split('T')[1].substring(0, 5);
+
+          sensorSpots.putIfAbsent(sensorId, () => []);
+          sensorTimes.putIfAbsent(sensorId, () => []);
+
+          sensorSpots[sensorId]!.add(FlSpot(hour, metricValue));
+          sensorTimes[sensorId]!.add(time);
+        }
+
+        setState(() {
+          _lineChartData = sensorSpots;
+          _sensorTimes = sensorTimes;
+        });
+      } else {
+        debugPrint('Failed to fetch daily usage data');
+      }
+    } catch (e) {
+      debugPrint('Error fetching line chart data: $e');
+    } finally {
+      setState(() => isLineChartLoading = false);
+    }
+  }
+
+  /// Normalize values to sum to 100%
+  List<Map<String, dynamic>> normalizeData(List<Map<String, dynamic>> data) {
+    double total = data.fold(0, (sum, item) => sum + item['value']);
+    if (total == 0) return data;
+
+    return data
+        .map((item) => {
+              'sensor': item['sensor'],
+              'value': (item['value'] / total) * 100, 
+              'color': item['color'],
+            })
+        .toList();
+  }
+
+  /// Converts HSL or HEX color formats to a Flutter Color object.
+  Color _parseColor(String colorStr) {
+    if (colorStr.startsWith("#")) {
+      return _hexToColor(colorStr);
+    } else if (colorStr.startsWith("hsl")) {
+      return _hslToColor(colorStr);
+    } else {
+      return _generateRandomColor(); 
+    }
+  }
+
+  /// Converts HEX to Color
+  Color _hexToColor(String hex) {
+    hex = hex.replaceAll("#", "");
+    return Color(int.parse("0xFF$hex"));
+  }
+
+  
+  Color _hslToColor(String hsl) {
+    final match = RegExp(r'hsl\((\d+),\s*(\d+)%,\s*(\d+)%\)').firstMatch(hsl);
+
+    if (match != null && match.groupCount == 3) {
+      int h = int.tryParse(match.group(1) ?? '') ?? 0;
+      int s = int.tryParse(match.group(2) ?? '') ?? 0;
+      int l = int.tryParse(match.group(3) ?? '') ?? 0;
+
+      return _hslToRgb(h, s, l);
+    }
+
+    return _generateRandomColor();
+  }
+
+  /// Converts HSL values to RGB and returns a Color object
+  Color _hslToRgb(int h, int s, int l) {
+    double sD = s / 100.0;
+    double lD = l / 100.0;
+    double c = (1 - (2 * lD - 1).abs()) * sD;
+    double x = c * (1 - ((h / 60) % 2 - 1).abs());
+    double m = lD - c / 2;
+    double r = 0, g = 0, b = 0;
+
+    if (h < 60) {
+      r = c;
+      g = x;
+    } else if (h < 120) {
+      r = x;
+      g = c;
+    } else if (h < 180) {
+      g = c;
+      b = x;
+    } else if (h < 240) {
+      g = x;
+      b = c;
+    } else if (h < 300) {
+      r = x;
+      b = c;
+    } else {
+      r = c;
+      b = x;
+    }
+
+    return Color.fromARGB(255, ((r + m) * 255).round(), ((g + m) * 255).round(),
+        ((b + m) * 255).round());
+  }
+
+  
+  Color _generateRandomColor() {
+    Random random = Random();
+    return Color.fromARGB(
+        255, random.nextInt(256), random.nextInt(256), random.nextInt(256));
+  }
+
+  void _onPageChanged(int index) {
+    setState(() {
+      _currentPage = index;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Colors.white, Color.fromARGB(255, 255, 155, 155)],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+            ),
+            borderRadius: BorderRadius.vertical(
+              bottom: Radius.circular(16.0),
+            ),
+          ),
+        ),
+        title: const Text('Chart'),
+        centerTitle: true,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            if (Navigator.canPop(context)) {
+              Navigator.pop(context);
+            }
+          },
+        ),
+      ),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Colors.white, Color.fromARGB(255, 255, 155, 155)],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+        ),
+        child: Column(
+          children: [
+            SizedBox(
+              height: 8,
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [0, 1, 2, 3].map((index) {
+                return Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 4.0),
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: _currentPage == index
+                        ? Colors.pinkAccent
+                        : Colors.grey.withOpacity(0.5),
+                  ),
+                );
+              }).toList(),
+            ),
+
+            SizedBox(height: 8),
+
+            // Sliding chart area
+            Expanded(
+              child: PageView(
+                controller: _pageController,
+                onPageChanged: _onPageChanged,
+                children: [
+                  _buildPieChartView(),
+                  _buildBarChartView(),
+                  _buildCandleStickView(),
+                  _buildLineChartView(),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPieChartView() {
+    return Container(
+      margin: const EdgeInsets.all(8.0),
+      padding: const EdgeInsets.all(8.0),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12.0),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black12.withOpacity(0.1),
+            blurRadius: 10,
+            spreadRadius: 2,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            const Text(
+              'Summarize power consumption',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 18,
+              ),
+            ),
+
+            const SizedBox(height: 10),
+
+            // Time Selection Buttons
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _buildTimeButton('DAY'),
+                _buildTimeButton('MONTH'),
+                _buildTimeButton('YEAR'),
+              ],
+            ),
+
+            const SizedBox(height: 10),
+
+            // Pie Chart Container
+            Container(
+              padding: const EdgeInsets.all(12.0),
+              margin: const EdgeInsets.symmetric(horizontal: 16.0),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16.0),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black12.withOpacity(0.1),
+                    blurRadius: 10,
+                    spreadRadius: 2,
+                    offset: const Offset(0, 5),
+                  ),
+                ],
+              ),
+              child: isLoading
+                  ? Center(child: CircularProgressIndicator())
+                  : _buildPieChart(),
+            ),
+
+            const SizedBox(height: 10),
+
+            // Sensor Details Container
+            Container(
+              padding: const EdgeInsets.all(12.0),
+              margin:
+                  const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16.0),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black12.withOpacity(0.1),
+                    blurRadius: 10,
+                    spreadRadius: 2,
+                    offset: const Offset(0, 5),
+                  ),
+                ],
+              ),
+              child: Column(
+                children: [
+                  const Text(
+                    'Sensor Details',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                  const SizedBox(height: 8),
+
+                  // Scrollable Sensor Grid
+                  SizedBox(
+                    height: 250,
+                    child: sensorData.isEmpty
+                        ? Center(child: Text('No sensor data available'))
+                        : GridView.builder(
+                            shrinkWrap: true,
+                            physics: const BouncingScrollPhysics(),
+                            gridDelegate:
+                                const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 2,
+                              crossAxisSpacing: 8,
+                              mainAxisSpacing: 8,
+                              childAspectRatio: 3.5,
+                            ),
+                            itemCount: sensorData.length,
+                            itemBuilder: (context, index) {
+                              final data = sensorData[index];
+                              return Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(12),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black12,
+                                      blurRadius: 2,
+                                      spreadRadius: 1,
+                                    ),
+                                  ],
+                                ),
+                                child: Row(
+                                  children: [
+                                    CircleAvatar(
+                                      backgroundColor: data['color'],
+                                      radius: 8,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Expanded(
+                                      child: Text(
+                                        // Show raw values for sensor details
+                                        '${data['sensorName']}: ${data['value'].toStringAsFixed(2)} kW',
+                                        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBarChartView() {
+  return Container(
+    margin: const EdgeInsets.all(8.0),
+    padding: const EdgeInsets.all(16.0),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(12.0),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black12.withOpacity(0.1),
+          blurRadius: 10,
+          spreadRadius: 2,
+          offset: const Offset(0, 5),
+        ),
+      ],
+    ),
+    child: Column(
+      children: [
+        const Text(
+          "Monthly power consumption and costing",
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 16),
+        Expanded(
+          child: electricityData.isEmpty
+              ? const Center(child: CircularProgressIndicator())
+              : BarChart(
+                  BarChartData(
+                    alignment: BarChartAlignment.spaceAround,
+                    barGroups: List.generate(electricityData.length, (index) {
+                      final data = electricityData[index];
+                      return BarChartGroupData(
+                        x: index, // Use index instead of monthOffset
+                        barRods: [
+                          BarChartRodData(
+                            toY: data['electricityUsed'],
+                            color: Colors.blue,
+                            width: 12,
+                            borderRadius: BorderRadius.circular(4),
+                            backDrawRodData: BackgroundBarChartRodData(
+                              show: true,
+                              toY: _getMaxBarValue() * 1.1,
+                              color: Colors.grey.withOpacity(0.2),
+                            ),
+                          ),
+                          BarChartRodData(
+                            toY: data['electricityCost'] /
+                                20, // Scale for better visualization
+                            color: Colors.red,
+                            width: 12,
+                            borderRadius: BorderRadius.circular(4),
+                            backDrawRodData: BackgroundBarChartRodData(
+                              show: true,
+                              toY: _getMaxBarValue() * 1.1,
+                              color: Colors.grey.withOpacity(0.2),
+                            ),
+                          ),
+                        ],
+                      );
+                    }),
+                    titlesData: FlTitlesData(
+                      leftTitles: AxisTitles(
+                        sideTitles: SideTitles(
+                          showTitles: true,
+                          reservedSize: 50,
+                          getTitlesWidget: (double value, TitleMeta meta) {
+                            return Text(
+                              '${value.toInt()}',
+                              style: const TextStyle(fontSize: 12),
+                            );
+                          },
+                        ),
+                      ),
+                      bottomTitles: AxisTitles(
+                        sideTitles: SideTitles(
+                          showTitles: true,
+                          reservedSize: 36,
+                          getTitlesWidget: (double value, TitleMeta meta) {
+                            final int index = value.toInt();
+                            final String month = index < electricityData.length 
+                                ? electricityData[index]['month'] ?? 'Month ${index + 1}'
+                                : 'Month ${index + 1}';
+                            return RotatedBox(
+                              quarterTurns: 1,
+                              child: Text(
+                                month,
+                                style: const TextStyle(fontSize: 10),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                      rightTitles: AxisTitles(
+                        sideTitles: SideTitles(showTitles: false),
+                      ),
+                      topTitles: AxisTitles(
+                        sideTitles: SideTitles(showTitles: false),
+                      ),
+                    ),
+                    borderData: FlBorderData(show: false),
+                    gridData:
+                        FlGridData(show: true, drawHorizontalLine: true),
+                  ),
+                ),
+        ),
+        const SizedBox(height: 20),
+        const Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.circle, color: Colors.blue, size: 12),
+            SizedBox(width: 4),
+            Text("Energy Used (kWh)", style: TextStyle(fontSize: 12)),
+            SizedBox(width: 16),
+            Icon(Icons.circle, color: Colors.red, size: 12),
+            SizedBox(width: 4),
+            Text("Cost (THB/20)", style: TextStyle(fontSize: 12)),
+          ],
+        ),
+      ],
+    ),
+  );
+}
+
+  Widget _buildCandleStickView() {
+  return Container(
+    margin: const EdgeInsets.all(8.0),
+    padding: const EdgeInsets.all(16.0),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(12.0),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black12.withOpacity(0.1),
+          blurRadius: 10,
+          spreadRadius: 2,
+          offset: const Offset(0, 5),
+        ),
+      ],
+    ),
+    child: Column(
+      children: [
+        const Text(
+          "Power Consumption Trend Analysis",
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 16),
+        Expanded(
+          child: isCandleLoading
+              ? const Center(child: CircularProgressIndicator())
+              : candleStickData.isEmpty
+                  ? const Center(child: Text("No candlestick data available"))
+                  : SfCartesianChart(
+                      title: ChartTitle(text: 'Energy Usage Patterns'),
+                      legend: Legend(isVisible: true),
+                      trackballBehavior: _trackballBehavior,
+                      zoomPanBehavior: ZoomPanBehavior(
+                        enablePanning: true,
+                        enablePinching: true,
+                        enableDoubleTapZooming: true,
+                        zoomMode: ZoomMode.x, 
+                      ),
+                      series: <CandleSeries>[
+                        CandleSeries<ChartSampleData, DateTime>(
+                          dataSource: candleStickData,
+                          name: 'Energy Usage',
+                          xValueMapper: (ChartSampleData sales, _) => sales.x,
+                          lowValueMapper: (ChartSampleData sales, _) => sales.low,
+                          highValueMapper: (ChartSampleData sales, _) => sales.high,
+                          openValueMapper: (ChartSampleData sales, _) => sales.open,
+                          closeValueMapper: (ChartSampleData sales, _) => sales.close,
+                          bullColor: Colors.green,
+                          bearColor: Colors.red,
+                          enableSolidCandles: true, 
+                          animationDuration: 1000, 
+                        )
+                      ],
+                      primaryXAxis: DateTimeAxis(
+                        dateFormat: DateFormat('dd/MM'),
+                        intervalType: DateTimeIntervalType.days,
+                        interval: 2,
+                        majorGridLines: const MajorGridLines(width: 0),
+                        title: AxisTitle(text: 'Date'),
+                        autoScrollingDelta: 10, 
+                        autoScrollingDeltaType: DateTimeIntervalType.days,
+                        edgeLabelPlacement: EdgeLabelPlacement.shift,
+                      ),
+                      primaryYAxis: NumericAxis(
+                        minimum: candleStickData.isNotEmpty
+                            ? candleStickData
+                                    .map((e) => e.low)
+                                    .reduce((a, b) => a < b ? a : b) * 0.9
+                            : 0,
+                        maximum: candleStickData.isNotEmpty
+                            ? candleStickData
+                                    .map((e) => e.high)
+                                    .reduce((a, b) => a > b ? a : b) * 1.1
+                            : 100,
+                        interval: 500,
+                        title: AxisTitle(text: 'Power (kWatt)'),
+                        labelFormat: '{value}',
+                        numberFormat: NumberFormat('#,##0'), // Format for integers only
+                      ),
+                    ),
+        ),
+        const SizedBox(height: 10),
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: Colors.blue.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.swipe, color: Colors.blue),
+              SizedBox(width: 8),
+              Text(
+                "Swipe left/right to view more data",
+                style: TextStyle(fontSize: 14, color: Colors.blue.shade800),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+Widget _buildLineChartView() {
+    return Container(
+      margin: const EdgeInsets.all(8.0),
+      padding: const EdgeInsets.all(16.0),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12.0),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black12.withOpacity(0.1),
+            blurRadius: 10,
+            spreadRadius: 2,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          const Text(
+            "Daily Power Usage by Sensor",
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 16),
+          
+          // Metric selection dropdown
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text("Select Metric:", 
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+              const SizedBox(width: 8),
+              DropdownButton<String>(
+                value: selectedMetric,
+                items: const [
+                  DropdownMenuItem(
+                    value: 'powerConsumption',
+                    child: Text("Power Consumption"),
+                  ),
+                  DropdownMenuItem(
+                    value: 'powerFactor', 
+                    child: Text("Power Factor"),
+                  ),
+                  DropdownMenuItem(
+                    value: 'reactivePower',
+                    child: Text("Reactive Power"),
+                  ),
+                ],
+                onChanged: (String? newValue) {
+                  if (newValue != null) {
+                    setState(() => selectedMetric = newValue);
+                    fetchLineChartData();
+                  }
+                },
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: 16),
+          
+          // Line Chart
+          Expanded(
+            child: isLineChartLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _lineChartData.isEmpty
+                    ? const Center(child: Text("No data available"))
+                    : LineChart(
+                        LineChartData(
+                          lineBarsData: _lineChartData.entries.map((entry) {
+                            int index = _lineChartData.keys.toList().indexOf(entry.key);
+                            return LineChartBarData(
+                              spots: entry.value,
+                              isCurved: true,
+                              color: sensorColors[index % sensorColors.length],
+                              barWidth: 3,
+                              isStrokeCapRound: true,
+                              belowBarData: BarAreaData(show: false),
+                              dotData: FlDotData(show: true),
+                            );
+                          }).toList(),
+                          titlesData: FlTitlesData(
+                            leftTitles: const AxisTitles(
+                              sideTitles: SideTitles(
+                                showTitles: true, 
+                                reservedSize: 50,
+                              ),
+                            ),
+                            bottomTitles: AxisTitles(
+                              sideTitles: SideTitles(
+                                showTitles: true,
+                                getTitlesWidget: (double value, TitleMeta meta) {
+                                  return Text('${value.toInt()}:00',
+                                      style: const TextStyle(fontSize: 12));
+                                },
+                              ),
+                            ),
+                            rightTitles: AxisTitles(
+                              sideTitles: SideTitles(showTitles: false),
+                            ),
+                            topTitles: AxisTitles(
+                              sideTitles: SideTitles(showTitles: false),
+                            ),
+                          ),
+                          borderData: FlBorderData(show: false),
+                          gridData: const FlGridData(
+                              show: true, drawHorizontalLine: true),
+                          lineTouchData: LineTouchData(
+                            touchTooltipData: LineTouchTooltipData(
+                              tooltipBgColor: Colors.black87,
+                              fitInsideHorizontally: true,
+                              fitInsideVertically: true,
+                              tooltipPadding: const EdgeInsets.all(8),
+                              tooltipMargin: 10,
+                              getTooltipItems: (List<LineBarSpot> touchedSpots) {
+                                return touchedSpots.map((spot) {
+                                  String sensorId =
+                                      _lineChartData.keys.elementAt(spot.barIndex);
+                                  int spotIndex = _lineChartData[sensorId]
+                                          ?.indexWhere((s) => s.x == spot.x) ??
+                                      -1;
+                                  String time = (spotIndex >= 0 &&
+                                          (_sensorTimes[sensorId]?.length ?? 0) >
+                                              spotIndex)
+                                      ? _sensorTimes[sensorId]![spotIndex]
+                                      : "Unknown";
+
+                                  return LineTooltipItem(
+                                    'Sensor: $sensorId\nValue: ${spot.y.toStringAsFixed(2)}\nTime: $time',
+                                    TextStyle(
+                                      color: sensorColors[_lineChartData.keys
+                                              .toList()
+                                              .indexOf(sensorId) %
+                                          sensorColors.length],
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  );
+                                }).toList();
+                              },
+                            ),
+                            handleBuiltInTouches: true,
+                          ),
+                        ),
+                      ),
+          ),
+          
+          // Legend
+          if (_lineChartData.isNotEmpty)
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              height: 60,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                children: _lineChartData.keys.map((sensorId) {
+                  int colorIndex = _lineChartData.keys.toList().indexOf(sensorId) % sensorColors.length;
+                  return Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 8),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 12,
+                          height: 12,
+                          color: sensorColors[colorIndex],
+                        ),
+                        const SizedBox(width: 4),
+                        Text("Sensor $sensorId", style: const TextStyle(fontSize: 12)),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  double _getMaxBarValue() {
+    if (electricityData.isEmpty) return 100;
+
+    double maxUsed = 0;
+    double maxCost = 0;
+
+    for (var data in electricityData) {
+      if (data['electricityUsed'] > maxUsed) {
+        maxUsed = data['electricityUsed'];
+      }
+      if (data['electricityCost'] / 20 > maxCost) {
+        maxCost = data['electricityCost'] / 20;
+      }
+    }
+
+    return maxUsed > maxCost ? maxUsed : maxCost;
+  }
+
+  Widget _buildTimeButton(String range) {
+    bool isSelected = selectedRange == range.toLowerCase();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 5.0),
+      child: ElevatedButton(
+        onPressed: () {
+          setState(() {
+            selectedRange = range.toLowerCase();
+            fetchPieData();
+          });
+        },
+        style: ElevatedButton.styleFrom(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+          backgroundColor: isSelected ? Colors.orangeAccent : Colors.white,
+          foregroundColor: isSelected ? Colors.white : Colors.black,
+          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
+          elevation: isSelected ? 5 : 2,
+        ),
+        child: Text(range),
+      ),
+    );
+  }
+
+  Widget _buildPieChart() {
+    if (sensorData.isEmpty) {
+      return SizedBox(
+        height: 250,
+        child: Center(child: Text('No data available')),
+      );
+    }
+
+    return Column(
+      children: [
+        SizedBox(
+          height: 200, 
+          child: PieChart(
+            PieChartData(
+              sections: sensorData.map((data) {
+                // Use percentage for the pie chart
+                return PieChartSectionData(
+                  value: data['percentage'],
+                  color: data['color'],
+                  title: '${data['percentage'].toStringAsFixed(1)}%',
+                  titleStyle: const TextStyle(
+                      fontSize: 14, fontWeight: FontWeight.bold),
+                );
+              }).toList(),
+              sectionsSpace: 2,
+              centerSpaceRadius: 60,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class ChartSampleData {
+  ChartSampleData({
+    required this.x,
+    required this.open,
+    required this.close,
+    required this.low,
+    required this.high,
+  });
+
+  final DateTime x;
+  final double open;
+  final double close;
+  final double low;
+  final double high;
+}

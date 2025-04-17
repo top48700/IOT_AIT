@@ -1,0 +1,25 @@
+FROM ghcr.io/cirruslabs/flutter:latest
+
+
+
+WORKDIR /app
+
+# คัดลอก pubspec.yaml และติดตั้ง dependencies
+COPY pubspec.yaml ./
+RUN flutter pub get
+
+# คัดลอกโค้ดทั้งหมด
+COPY . .
+
+# Build เป็น Web App
+RUN flutter config --enable-web
+
+RUN flutter build web
+
+# ใช้ nginx เป็นเว็บเซิร์ฟเวอร์
+FROM nginx:alpine
+COPY --from=0 /app/build/web /usr/share/nginx/html
+
+EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]

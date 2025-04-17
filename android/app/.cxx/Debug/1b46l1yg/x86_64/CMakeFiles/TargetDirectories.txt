@@ -1,0 +1,2 @@
+C:/Users/Thanabool/Documents/GitHub/IOT_Project/android/app/.cxx/Debug/1b46l1yg/x86_64/CMakeFiles/edit_cache.dir
+C:/Users/Thanabool/Documents/GitHub/IOT_Project/android/app/.cxx/Debug/1b46l1yg/x86_64/CMakeFiles/rebuild_cache.dir

@@ -1,0 +1,37 @@
+services:
+  nextjs:
+    build:
+      context: .
+      dockerfile: Dockerfile.nextjs
+    ports:
+      - "3000:3000"
+    depends_on:
+      - influxdb
+    environment:
+      - NODE_ENV=production
+
+  flutter:
+    build:
+      context: .
+      dockerfile: Dockerfile.flutter
+    ports:
+      - "8080:80"
+    depends_on:
+      - nextjs
+
+  influxdb:
+    image: influxdb:1.8
+    container_name: influxdb
+    restart: always
+    ports:
+      - "59004:8086"
+    volumes:
+      - influxdb_data:/var/lib/influxdb
+    environment:
+      - INFLUXDB_DB=iox2024
+      - INFLUXDB_ADMIN_USER=admin
+      - INFLUXDB_ADMIN_PASSWORD=dtSDD@a1t2025
+
+volumes:
+  influxdb_data:
+

@@ -1,0 +1,2 @@
+E:/AIT_IOT/IOT_Project/android/app/.cxx/Debug/h43625s1/armeabi-v7a/CMakeFiles/edit_cache.dir
+E:/AIT_IOT/IOT_Project/android/app/.cxx/Debug/h43625s1/armeabi-v7a/CMakeFiles/rebuild_cache.dir
